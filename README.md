@@ -1,4 +1,4 @@
-# URex-Robotic-Test-Bed-Digital-Twin
+# Digital Twin of a Dual-Arm Satellite Proximity-Operations Testbed
 
 Undergraduate Research Experience (CDE2605R UREx), National University of Singapore.
 
