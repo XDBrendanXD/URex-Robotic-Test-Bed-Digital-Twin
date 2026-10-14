@@ -1,0 +1,19 @@
+# Normalise line endings for text; keep Unity YAML diffable
+* text=auto
+*.cs      text diff=csharp
+*.unity   text eol=lf
+*.prefab  text eol=lf
+*.asset   text eol=lf
+*.meta    text eol=lf
+*.mat     text eol=lf
+*.urdf    text eol=lf
+*.ipynb   text eol=lf
+
+# Binary files: never touch line endings
+*.STL  binary
+*.stl  binary
+*.fbx  binary
+*.dll  binary
+*.png  binary
+*.jpg  binary
+*.pdf  binary
