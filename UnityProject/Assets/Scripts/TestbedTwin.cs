@@ -18,8 +18,11 @@ using NetMQ.Sockets;
 public class TestbedTwin : MonoBehaviour
 {
     [Header("Robots imported with the URDF Importer (drag the root GameObjects here)")]
-    public Transform chaserRobot;   // ReBot_Chaser_Rail
+    public Transform chaserRobot;   // ReBot_Chaser_Rail (hangs upside-down from the overhead rail: Rotation (0, 0, 180))
     public Transform debrisRobot;   // ReBot_Debris
+    [Tooltip("Optional CAD carriage mesh (BODY2_E-MTHE17…), parked at stroke 0. Parented to rail_carriage on Start so it slides with rail_joint.")]
+    public Transform carriageMesh;
+    public bool hideUrdfRailBase = true;                     // the CAD actuator replaces the URDF's grey rail_base box
 
     [Header("ZeroMQ (the notebook binds, Unity connects)")]
     public string cmdAddress = "tcp://localhost:5556";
@@ -28,7 +31,7 @@ public class TestbedTwin : MonoBehaviour
 
     [Header("Test bed")]
     public bool buildTable = true;
-    public Vector2 tableSizeXZ = new Vector2(0.74f, 2.0f);   // Unity x = table width, Unity z = 2 m length
+    public Vector2 tableSizeXZ = new Vector2(0.74f, 1.39f);  // Unity x = table width, Unity z = 1.39 m length
     public float tcp = 0.05f;                                // satellite centre beyond gripper tip (m)
     public float chaserSize = 0.10f;
     public float debrisSize = 0.10f;
@@ -84,10 +87,17 @@ public class TestbedTwin : MonoBehaviour
 
         chJ = FindJoints(chaserRobot, ChaserLinks);
         deJ = FindJoints(debrisRobot, DebrisLinks);
+        AttachCarriageMesh();        // before ConfigureRobot, so its colliders are disabled with the robot's
         ConfigureRobot(chaserRobot);
         ConfigureRobot(debrisRobot);
         chBase = FindDeep(chaserRobot, "rail_base") ?? chaserRobot;
         deBase = FindDeep(debrisRobot, "base_link") ?? debrisRobot;
+        if (hideUrdfRailBase)
+        {
+            // only rail_base's own Visuals child: the carriage and the arm are child links of rail_base
+            var vis = chBase.Find("Visuals");
+            if (vis != null) foreach (var r in vis.GetComponentsInChildren<Renderer>()) r.enabled = false;
+        }
 
         if (buildTable) BuildTable();
         chSat = MakeSatellite(FindDeep(chaserRobot, "gripper_end"), chaserSize, new Color(0.95f, 0.75f, 0.1f), "ChaserSat");
@@ -202,6 +212,20 @@ public class TestbedTwin : MonoBehaviour
         return res;
     }
 
+    void AttachCarriageMesh()
+    {
+        if (carriageMesh == null) return;
+        var carriage = FindDeep(chaserRobot, "rail_carriage");
+        if (carriage == null) { Debug.LogError("carriageMesh: no rail_carriage link on the chaser robot"); return; }
+        // The mesh is parked at stroke 0, so attach it while the rail is still at 0 (before any command is applied).
+        var rail = chJ[0];
+        if (rail != null && rail.dofCount > 0 && Mathf.Abs(rail.jointPosition[0]) > 1e-4f)
+            Debug.LogWarning($"carriageMesh: rail_joint is at {rail.jointPosition[0]:F4} m, not 0; the mesh will be offset by that much");
+        carriageMesh.SetParent(carriage, true);   // keep its world pose
+        var vis = carriage.Find("Visuals");       // the URDF's grey carriage box sits inside the CAD carriage
+        if (vis != null) foreach (var r in vis.GetComponentsInChildren<Renderer>()) r.enabled = false;
+    }
+
     void ConfigureRobot(Transform robot)
     {
         foreach (var ab in robot.GetComponentsInChildren<ArticulationBody>())
@@ -236,7 +260,7 @@ public class TestbedTwin : MonoBehaviour
     void BuildTable()
     {
         var top = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        top.name = "Table_2000x740"; Destroy(top.GetComponent<Collider>());
+        top.name = "Table"; Destroy(top.GetComponent<Collider>());
         top.transform.position = new Vector3(0, -0.02f, 0);
         top.transform.localScale = new Vector3(tableSizeXZ.x, 0.04f, tableSizeXZ.y);
         top.GetComponent<Renderer>().material.color = new Color(0.82f, 0.78f, 0.70f);

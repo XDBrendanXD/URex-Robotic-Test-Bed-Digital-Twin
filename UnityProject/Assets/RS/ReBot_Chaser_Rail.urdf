@@ -8,14 +8,12 @@
   <link name="rail_base">
     <inertial><origin xyz="0.625 0 0.01" rpy="0 0 0"/><mass value="5"/>
       <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.7" iyz="0" izz="0.7"/></inertial>
-    <visual><origin xyz="0.675 0 -0.005" rpy="0 0 0"/>
-      <geometry><box size="1.45 0.08 0.01"/></geometry><material name="rail_grey"/></visual>
   </link>
   <link name="rail_carriage">
     <inertial><origin xyz="0 0 0.01" rpy="0 0 0"/><mass value="0.5"/>
       <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/></inertial>
     <visual><origin xyz="0 0 0.01" rpy="0 0 0"/>
-      <geometry><box size="0.16 0.14 0.02"/></geometry><material name="rail_grey"/></visual>
+      <geometry><box size="0.14 0.14 0.02"/></geometry><material name="rail_grey"/></visual>
   </link>
   <joint name="rail_joint" type="prismatic">
     <origin xyz="0 0 0" rpy="0 0 0"/><parent link="rail_base"/><child link="rail_carriage"/>
