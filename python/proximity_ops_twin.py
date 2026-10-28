@@ -38,35 +38,36 @@ RS_DIR   = Path(r"../UnityProject/Assets/RS")  # <-- edit
 SRC_URDF = RS_DIR / "urdf" / "ReBot_Arm_RS.urdf"
 
 # ---- Test-bed layout (lab frame: right-handed, Z up, origin = centre of table top, metres) ----
-# Values from the CAD assembly HIL_Main_Robotics; replace with measurements once the rig is built.
+# Values from the CAD export HIL_Main_Robotics_1 (28 Oct 2026); replace with measurements once the rig is built.
 TABLE_L, TABLE_W = 1.390, 0.740          # table top, X along the 1390 mm length (= rail direction)
-H        = 0.35                          # height of both satellite centres above the table (0.30 leaves the debris
-                                         # arm no level pose from a base on the tabletop, and the hanging chaser less margin)
+H        = 0.45                          # height of both satellite centres above the table (lower puts them too far
+                                         # below the raised rail mount: H = 0.30 gives 3–4 mm / 11–16° IK errors)
+DEBRIS_BASE_Z = 0.010                    # debris arm stands on its 10 mm CNC adapter plate (CNC Parts:1)
 TCP      = 0.05                          # satellite centre sits 5 cm beyond the gripper tip, along the tool axis
 SAT_SIZE = (0.10, 0.10)                  # (chaser, debris) cube edge for the Unity mock-ups
+PLATE    = 0.18                          # CNC adapter plates are 0.18 x 0.18 x 0.01
 
-DEBRIS_CENTRE    = np.array([0.64, 0.00, H])   # debris is fixed here (origin of LVLH), near the +X end of the table
-DEBRIS_BASE_POS  = np.array([0.55, -0.29, 0.0])  # on the tabletop; base plate (0.20 x 0.14 at this yaw): x 0.45…0.65, y −0.36…−0.22
-DEBRIS_BASE_YAW  = np.deg2rad(90)              # debris arm faces +Y and holds the debris over the centreline
+# The chaser's lateral offset runs 0 → +0.18 m; offsetting the debris by −0.09 centres it under the rail (±0.09).
+DEBRIS_CENTRE    = np.array([0.60, -0.09, H])            # debris is fixed here (origin of LVLH), near the +X end
+DEBRIS_BASE_POS  = np.array([0.60, 0.23, DEBRIS_BASE_Z])  # plate on the tabletop: x 0.51…0.69, y 0.14…0.32
+DEBRIS_BASE_YAW  = np.deg2rad(-90)                        # debris arm faces −Y, toward the debris centre
 
-# Chaser arm hangs upside-down under the carriage of the overhead rail (MISUMI E-MTHE17-L10-1250).
-# RAIL_BASE_POS = carriage at stroke 0, z = arm mount face (0.773) + RAIL_CARRIAGE_H; the rail frame is Rx(pi),
-# so its +X is still lab +X and the arm base sits RAIL_CARRIAGE_H *below* it.
+# Chaser arm hangs upside-down under the carriage of the overhead rail (MISUMI E-MTHE17-L10-1250), on its CNC adapter
+# plate (CNC Parts:2, z 0.923…0.933). RAIL_BASE_POS = carriage at stroke 0, z = mount face (plate bottom, 0.923) +
+# RAIL_CARRIAGE_H; the rail frame is Rx(pi), so its +X is still lab +X and the arm base sits RAIL_CARRIAGE_H *below* it.
 # Stroke 0 is assumed to be the -X (drawer-box) end; the motor/home end is not confirmed.
-RAIL_BASE_POS    = np.array([-0.795, 0.00, 0.793])
+MOUNT_FACE_Z     = 0.923
+RAIL_BASE_POS    = np.array([-0.795, 0.00, MOUNT_FACE_Z + 0.02])
 RAIL_LENGTH      = 1.25
 RAIL_CARRIAGE_H  = 0.02
-CHASER_STANDOFF  = 0.23                          # satellite centre is kept 0.23 m ahead of the carriage (in X) ...
-RAIL_END_MARGIN  = 0.01                          # ... except at the start: the carriage starts 10 mm off its end stop
-STANDOFF_RAMP_S  = 150.0                         # and the standoff grows to CHASER_STANDOFF over this many (CSV) seconds.
-                                                 # The hanging arm can't hold the satellite level
-                                                 # directly below or behind the carriage; at the 0.18 m peak lateral offset
-                                                 # only ~0.21–0.24 keeps joints 4/5 > 0.05 rad off their limits.
-FRAME_BOX = (np.array([-1.08, -0.395, 0.0]), np.array([0.74, 0.395, 0.773]))  # inside the overhead frame, below the mount face
+CHASER_STANDOFF  = 0.15                          # satellite centre is kept 0.15 m ahead of the carriage (in X).
+                                                 # 0.10 leaves joint 4 only 0.007 rad off its limit; 0.20 needs a 1.15 m start.
+# Inside the overhead frame: between the corner posts in X, the post inner faces in Y, below the mount face.
+FRAME_BOX = (np.array([-1.00, -0.375, 0.0]), np.array([0.66, 0.375, MOUNT_FACE_Z]))
 
-# The full 1.5 m approach needs ~1.3 m of rail plus the standoff, more than the stroke allows with the debris on the
-# table, so the run starts at the first sample inside this range (option 1 of the layout decision). The CSV is not changed.
-APPROACH_START_RANGE = 1.30
+# The full 1.5 m approach would put the debris past the table end, so the run starts at the first sample inside this
+# range (approach 1.20 → 0.30 m, agreed with the supervisor). The CSV is not changed.
+APPROACH_START_RANGE = 1.20
 
 THRESHOLD = 0.30
 
@@ -124,8 +125,7 @@ print("chaser centre X range:", C_ref[:,0].min().round(3), "…", C_ref[:,0].max
 print("chaser centre Y range:", C_ref[:,1].min().round(3), "…", C_ref[:,1].max().round(3), f" (frame Y ∈ ±{FRAME_BOX[1][1]})")
 half = np.array(SAT_SIZE).max()/2      # whole satellite cube inside the frame volume
 assert np.all(np.r_[C_ref, [DEBRIS_CENTRE]] - half > FRAME_BOX[0]) and np.all(np.r_[C_ref, [DEBRIS_CENTRE]] + half < FRAME_BOX[1])
-foot = np.abs(Rz(DEBRIS_BASE_YAW)[:2,:2]) @ [0.07, 0.10]   # base-plate half extents in lab X, Y
-assert np.all(np.abs(DEBRIS_BASE_POS[:2]) + foot <= [TABLE_L/2, TABLE_W/2]), "debris base plate is off the tabletop"
+assert np.all(np.abs(DEBRIS_BASE_POS[:2]) + PLATE/2 <= [TABLE_L/2, TABLE_W/2]), "debris adapter plate is off the tabletop"
 
 # ## 4. Unity-ready URDFs
 # (rail_base has no visual: the CAD actuator in the scene is the rail body.)
@@ -175,8 +175,7 @@ print("missing meshes:", missing or "none")
 
 # ## 5. Kinematics straight from the URDF, then IK for every sample
 # Forward kinematics is built by chaining the URDF joint origins and axes (no ROS needed).
-# IK: rail position is set analytically (keeps the satellite `CHASER_STANDOFF` ahead of the carriage, or parks the
-# carriage `RAIL_END_MARGIN` off the end stop while the satellite is closer than that),
+# IK: rail position is set analytically (keeps the satellite `CHASER_STANDOFF` ahead of the carriage),
 # then a bounded least-squares solve gives the 6 arm joints for the satellite **position and attitude**
 # (the chaser is held LVLH-fixed with its +X face pointing at the debris; the debris arm holds one static pose).
 
@@ -230,7 +229,7 @@ print("home tool pose (base frame):\n", arm.fk(np.zeros(6)).round(4))
 
 # Desired satellite attitudes (lab frame). Tool frame of gripper_end: +X out of the gripper, +Z up at home.
 R_CHASER = np.eye(3)                 # chaser +X face points along +X (toward the debris), Z up
-R_DEBRIS = Rz(DEBRIS_BASE_YAW)       # debris simply held level by an arm facing +Y
+R_DEBRIS = Rz(DEBRIS_BASE_YAW)       # debris simply held level by an arm facing −Y
 T_tcp = hom(p=np.array([TCP, 0, 0])) # gripper_end -> satellite centre
 # The hanging chaser's mock-up is mounted turned 180° about the tool axis: holding it Z-up with gripper Z-up would need
 # joint6 = ±π, just outside its ±3.14 limit. The centre offset is the same, and the cube looks the same in Unity.
@@ -254,15 +253,9 @@ print(f"debris arm: q = {np.round(q_deb,4)}  pos err {e_deb*1e3:.3f} mm, att err
 
 # --- chaser: rail (analytic) + arm (IK) for every sample ---
 N = len(t)
-# The standoff starts at whatever puts the carriage RAIL_END_MARGIN off its end stop and grows smoothly to CHASER_STANDOFF
-# over STANDOFF_RAMP_S, so the arm reaches forward slowly instead of swinging while the carriage waits.
-s0 = C_ref[0,0] - RAIL_BASE_POS[0] - RAIL_END_MARGIN
-tau = np.clip((t - t[0]) / STANDOFF_RAMP_S, 0, 1)
-standoff = s0 + (CHASER_STANDOFF - s0) * tau*tau*(3 - 2*tau)    # smoothstep: starts and ends with zero rate
-rail = C_ref[:,0] - standoff - RAIL_BASE_POS[0]
-print(f"rail {rail.min():.3f} … {rail.max():.3f} m (stroke 0 … {RAIL_LENGTH}), satellite ahead of carriage {standoff.min():.3f} … {standoff.max():.3f} m")
+rail = C_ref[:,0] - CHASER_STANDOFF - RAIL_BASE_POS[0]
+print(f"rail {rail.min():.3f} … {rail.max():.3f} m (stroke 0 … {RAIL_LENGTH}), satellite {CHASER_STANDOFF} m ahead of the carriage")
 assert rail.min() >= 0 and rail.max() <= RAIL_LENGTH, (rail.min(), rail.max())
-assert standoff.min() >= 0.10, "satellite too close to (or behind) the carriage for the hanging arm"
 assert np.all(np.diff(rail) >= 0), "rail reverses direction"
 T_RAIL = hom(Rx(np.pi), RAIL_BASE_POS)        # rail frame, upside-down: local +X = lab +X, local +Z = lab -Z
 def chaser_base(rail_k): return T_RAIL @ hom(p=[rail_k, 0, RAIL_CARRIAGE_H])
@@ -289,9 +282,10 @@ sep_fk = np.linalg.norm(C_fk - deb_fk, axis=1)
 print("max |sep_fk - range_ref| =", np.abs(sep_fk - rng[::10]).max()*1e3, "mm")
 
 # Acceptance: sub-mm, sub-0.1°, clear of the joint limits
-ok = E_ch.max() < 1e-3 and A_ch.max() < 0.1 and margin.min() > 0.05 and e_deb < 1e-3 and a_deb < 0.1 \
-     and np.minimum(q_deb - arm.lo, arm.hi - q_deb).min() > 0.05
-print("IK acceptance (< 1 mm, < 0.1°, > 0.05 rad from limits):", "PASS" if ok else "FAIL")
+MIN_MARGIN = 0.15
+ok = E_ch.max() < 1e-3 and A_ch.max() < 0.1 and margin.min() >= MIN_MARGIN and e_deb < 1e-3 and a_deb < 0.1 \
+     and np.minimum(q_deb - arm.lo, arm.hi - q_deb).min() >= MIN_MARGIN
+print(f"IK acceptance (< 1 mm, < 0.1°, ≥ {MIN_MARGIN} rad from limits):", "PASS" if ok else "FAIL")
 
 # Rough clearance check on the joint frames (not the meshes): nothing below the tabletop, chaser below the mount face
 def frames(T_base, q):
@@ -303,7 +297,7 @@ def frames(T_base, q):
     return np.array(P)
 P_ch = np.vstack([frames(chaser_base(rail[k]), Q_ch[k]) for k in range(0, N, 50)])
 P_de = frames(T_deb_base, q_deb)
-print(f"joint frames: chaser z ∈ [{P_ch[:,2].min():.3f}, {P_ch[:,2].max():.3f}], debris z ∈ [{P_de[:,2].min():.3f}, {P_de[:,2].max():.3f}] (table top 0, mount face 0.773)")
+print(f"joint frames: chaser z ∈ [{P_ch[:,2].min():.3f}, {P_ch[:,2].max():.3f}], debris z ∈ [{P_de[:,2].min():.3f}, {P_de[:,2].max():.3f}] (table top 0, mount face {MOUNT_FACE_Z})")
 
 fig, ax = plt.subplots(1, 2, figsize=(12, 4))
 ax[0].plot(t, Q_ch); ax[0].legend(arm.names, fontsize=8); ax[0].set_title('chaser arm joints [rad]'); ax[0].set_xlabel('t [s]'); ax[0].grid()

@@ -20,8 +20,8 @@ public class TestbedTwin : MonoBehaviour
     [Header("Robots imported with the URDF Importer (drag the root GameObjects here)")]
     public Transform chaserRobot;   // ReBot_Chaser_Rail (hangs upside-down from the overhead rail: Rotation (0, 0, 180))
     public Transform debrisRobot;   // ReBot_Debris
-    [Tooltip("Optional CAD carriage mesh (BODY2_E-MTHE17…), parked at stroke 0. Parented to rail_carriage on Start so it slides with rail_joint.")]
-    public Transform carriageMesh;
+    [Tooltip("CAD carriage parts (BODY2_E-MTHE17… and its adapter plate CNC Parts:2), parked at stroke 0. Parented to rail_carriage on Start so they slide with rail_joint.")]
+    public Transform[] carriageMeshes;
     public bool hideUrdfRailBase = true;                     // the CAD actuator replaces the URDF's grey rail_base box
 
     [Header("ZeroMQ (the notebook binds, Unity connects)")]
@@ -30,7 +30,7 @@ public class TestbedTwin : MonoBehaviour
     public float stateRateHz = 30f;
 
     [Header("Test bed")]
-    public bool buildTable = true;
+    public bool buildTable = false;                          // the CAD export includes the tabletop
     public Vector2 tableSizeXZ = new Vector2(0.74f, 1.39f);  // Unity x = table width, Unity z = 1.39 m length
     public float tcp = 0.05f;                                // satellite centre beyond gripper tip (m)
     public float chaserSize = 0.10f;
@@ -87,7 +87,7 @@ public class TestbedTwin : MonoBehaviour
 
         chJ = FindJoints(chaserRobot, ChaserLinks);
         deJ = FindJoints(debrisRobot, DebrisLinks);
-        AttachCarriageMesh();        // before ConfigureRobot, so its colliders are disabled with the robot's
+        AttachCarriageMeshes();      // before ConfigureRobot, so their colliders are disabled with the robot's
         ConfigureRobot(chaserRobot);
         ConfigureRobot(debrisRobot);
         chBase = FindDeep(chaserRobot, "rail_base") ?? chaserRobot;
@@ -101,6 +101,7 @@ public class TestbedTwin : MonoBehaviour
 
         if (buildTable) BuildTable();
         chSat = MakeSatellite(FindDeep(chaserRobot, "gripper_end"), chaserSize, new Color(0.95f, 0.75f, 0.1f), "ChaserSat");
+        chSat.localRotation = Quaternion.Euler(0, 0, 180);     // mounted turned 180° about tool X (T_TCP_CHASER in Python)
         deSat = MakeSatellite(FindDeep(debrisRobot, "gripper_end"), debrisSize, new Color(0.6f, 0.6f, 0.65f), "DebrisSat");
         var trail = chSat.gameObject.AddComponent<TrailRenderer>();
         trail.time = 10000f; trail.startWidth = trail.endWidth = 0.006f;
@@ -212,16 +213,17 @@ public class TestbedTwin : MonoBehaviour
         return res;
     }
 
-    void AttachCarriageMesh()
+    void AttachCarriageMeshes()
     {
-        if (carriageMesh == null) return;
+        if (carriageMeshes == null || carriageMeshes.Length == 0) return;
         var carriage = FindDeep(chaserRobot, "rail_carriage");
-        if (carriage == null) { Debug.LogError("carriageMesh: no rail_carriage link on the chaser robot"); return; }
-        // The mesh is parked at stroke 0, so attach it while the rail is still at 0 (before any command is applied).
+        if (carriage == null) { Debug.LogError("carriageMeshes: no rail_carriage link on the chaser robot"); return; }
+        // The meshes are parked at stroke 0, so attach them while the rail is still at 0 (before any command is applied).
         var rail = chJ[0];
         if (rail != null && rail.dofCount > 0 && Mathf.Abs(rail.jointPosition[0]) > 1e-4f)
-            Debug.LogWarning($"carriageMesh: rail_joint is at {rail.jointPosition[0]:F4} m, not 0; the mesh will be offset by that much");
-        carriageMesh.SetParent(carriage, true);   // keep its world pose
+            Debug.LogWarning($"carriageMeshes: rail_joint is at {rail.jointPosition[0]:F4} m, not 0; the meshes will be offset by that much");
+        foreach (var m in carriageMeshes)
+            if (m != null) m.SetParent(carriage, true);   // keep their world pose
         var vis = carriage.Find("Visuals");       // the URDF's grey carriage box sits inside the CAD carriage
         if (vis != null) foreach (var r in vis.GetComponentsInChildren<Renderer>()) r.enabled = false;
     }
