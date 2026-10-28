@@ -1,6 +1,6 @@
 #if UNITY_EDITOR
 // Put this file in Assets/Editor/ and run  Tools > Testbed > Apply CAD Look
-// Recreates the CAD file's own materials (from HIL_Table.fbx) as URP materials and applies them:
+// Recreates the CAD file's own materials (from HIL_Main_Robotics.fbx) as URP materials and applies them:
 //   Opaque(R,G,B)  -> that exact colour, non-metallic (supplier colours of the foldable table)
 //   Steel - Satin  -> Fusion's default steel (160,160,160), satin metal (add-on frame, rail, bumpers, tabletop)
 // Matching is by the imported material's name, so it works on any part that came from the FBX.
@@ -20,7 +20,7 @@ public static class TestbedLook
     static readonly Dictionary<string, Material> cache = new Dictionary<string, Material>();
 
     [MenuItem("Tools/Testbed/Apply CAD Look")]
-    static void Apply()
+    internal static void Apply()
     {
         Directory.CreateDirectory(Dir);
         cache.Clear();
@@ -60,9 +60,9 @@ public static class TestbedLook
     // Anything inside the imported model, the loose carriage, or the tabletop.
     static bool IsScenery(Transform t)
     {
-        if (t.name == "Tabletop" || t.name.StartsWith("BODY2_E-MTHE17")) return true;
+        if (t.name == "Tabletop" || t.name.StartsWith("BODY2_E-MTHE17") || t.name.StartsWith("CNC Parts")) return true;
         for (; t != null; t = t.parent)
-            if (t.name.StartsWith("HIL_Scenery") || t.name.StartsWith("HIL_Table")) return true;
+            if (t.name.StartsWith("HIL_Scenery") || t.name.StartsWith("HIL_Table") || t.name.StartsWith("HIL_Main_Robotics")) return true;
         return false;
     }
 
